@@ -1,0 +1,22 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Mit LedFx verbinden",
+        "description": "Gib die Adresse deines LedFx-Servers ein.",
+        "data": { "host": "Host", "port": "Port" }
+      }
+    },
+    "error": { "cannot_connect": "Verbindung zu LedFx fehlgeschlagen. Prüfe Host und Port." },
+    "abort": { "already_configured": "Dieser LedFx-Server ist bereits eingerichtet." }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "LedFx Plus Optionen",
+        "description": "Wähle aus, welche LedFx-Virtuals in Home Assistant erscheinen sollen. Abgewählte Virtuals werden samt Entitäten entfernt.",
+        "data": { "virtuals": "Virtuals" }
+      }
+    }
+  }
+}

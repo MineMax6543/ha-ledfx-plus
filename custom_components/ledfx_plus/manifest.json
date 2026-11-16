@@ -1,0 +1,12 @@
+{
+  "domain": "ledfx_plus",
+  "name": "LedFx Plus",
+  "codeowners": ["@MineMax6543"],
+  "config_flow": true,
+  "documentation": "https://github.com/MineMax6543/ha-ledfx-plus",
+  "integration_type": "hub",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/MineMax6543/ha-ledfx-plus/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
