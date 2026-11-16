@@ -17,8 +17,10 @@ from homeassistant.helpers.selector import (
 )
 
 from .api import LedFxClient, LedFxError
-from .const import CONF_VIRTUALS, DEFAULT_PORT, DOMAIN
+from .const import CONF_EXCLUDED_VIRTUALS, DEFAULT_PORT, DOMAIN
 from .coordinator import is_device_virtual
+
+CONF_INCLUDED = "virtuals"
 
 DATA_SCHEMA = vol.Schema(
     {
@@ -57,30 +59,35 @@ class LedFxPlusConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class LedFxPlusOptionsFlow(OptionsFlow):
-    """Choose which LedFx virtuals become Home Assistant entities."""
+    """Choose which LedFx virtuals become Home Assistant devices.
+
+    Stored as an exclusion list, so virtuals created later in LedFx appear automatically.
+    """
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         coordinator = self.config_entry.runtime_data
         virtuals = coordinator.data.virtuals
 
         if user_input is not None:
-            return self.async_create_entry(data=user_input)
+            included = set(user_input.get(CONF_INCLUDED, []))
+            return self.async_create_entry(
+                data={CONF_EXCLUDED_VIRTUALS: sorted(set(virtuals) - included)}
+            )
+
+        def label(vid: str) -> str:
+            v = virtuals[vid]
+            name = v.get("config", {}).get("name", vid)
+            return f"{name} (device)" if is_device_virtual(v) else name
 
         options = [
-            SelectOptionDict(
-                value=vid,
-                label=v.get("config", {}).get("name", vid)
-                + (" (device)" if is_device_virtual(v) else ""),
-            )
-            for vid, v in sorted(virtuals.items(), key=lambda i: i[1].get("config", {}).get("name", i[0]))
+            SelectOptionDict(value=vid, label=label(vid))
+            for vid in sorted(virtuals, key=label)
         ]
-        default = sorted(coordinator.wanted_virtual_ids())
-
         schema = vol.Schema(
             {
-                vol.Optional(CONF_VIRTUALS, default=default): SelectSelector(
-                    SelectSelectorConfig(options=options, multiple=True)
-                ),
+                vol.Optional(
+                    CONF_INCLUDED, default=sorted(coordinator.wanted_virtual_ids())
+                ): SelectSelector(SelectSelectorConfig(options=options, multiple=True)),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)

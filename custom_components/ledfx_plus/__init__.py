@@ -11,8 +11,9 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .api import LedFxClient
 from .const import DOMAIN
 from .coordinator import LedFxCoordinator
+from .entity import server_device_info
 
-PLATFORMS: list[Platform] = [Platform.LIGHT]
+PLATFORMS: list[Platform] = [Platform.LIGHT, Platform.SELECT, Platform.SWITCH]
 
 type LedFxConfigEntry = ConfigEntry[LedFxCoordinator]
 
@@ -22,6 +23,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: LedFxConfigEntry) -> boo
     coordinator = LedFxCoordinator(hass, entry, client)
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
+
+    # Hub device first, so virtual devices can point to it via via_device.
+    dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id, **server_device_info(coordinator)
+    )
 
     # Keep the device registry in sync with LedFx: no dead devices/entities.
     @callback
@@ -49,21 +55,18 @@ async def async_remove_config_entry_device(
     hass: HomeAssistant, entry: LedFxConfigEntry, device: dr.DeviceEntry
 ) -> bool:
     """Allow manual deletion of a virtual's device once it no longer exists/is wanted."""
-    coordinator = entry.runtime_data
-    wanted = coordinator.wanted_virtual_ids()
-    return not any(
-        domain == DOMAIN and ident.removeprefix(f"{entry.entry_id}_") in wanted
-        for domain, ident in device.identifiers
-    )
+    wanted = {f"{entry.entry_id}_{vid}" for vid in entry.runtime_data.wanted_virtual_ids()}
+    wanted.add(entry.entry_id)
+    return not any(domain == DOMAIN and ident in wanted for domain, ident in device.identifiers)
 
 
 @callback
 def _remove_stale_devices(
     hass: HomeAssistant, entry: LedFxConfigEntry, coordinator: LedFxCoordinator
 ) -> None:
-    """Remove devices (and with them their entities) for virtuals that are gone or deselected."""
+    """Remove devices (and with them their entities) for virtuals that are gone or excluded."""
     if not coordinator.last_update_success:
-        return  # never prune based on a failed/empty fetch
+        return  # never prune based on a failed fetch
     wanted = {f"{entry.entry_id}_{vid}" for vid in coordinator.wanted_virtual_ids()}
     wanted.add(entry.entry_id)  # the server/hub device itself
     dev_reg = dr.async_get(hass)

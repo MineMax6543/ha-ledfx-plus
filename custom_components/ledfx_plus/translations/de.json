@@ -4,18 +4,58 @@
       "user": {
         "title": "Mit LedFx verbinden",
         "description": "Gib die Adresse deines LedFx-Servers ein.",
-        "data": { "host": "Host", "port": "Port" }
+        "data": {
+          "host": "Host",
+          "port": "Port"
+        }
       }
     },
-    "error": { "cannot_connect": "Verbindung zu LedFx fehlgeschlagen. Prüfe Host und Port." },
-    "abort": { "already_configured": "Dieser LedFx-Server ist bereits eingerichtet." }
+    "error": {
+      "cannot_connect": "Verbindung zu LedFx fehlgeschlagen. Prüfe Host und Port."
+    },
+    "abort": {
+      "already_configured": "Dieser LedFx-Server ist bereits eingerichtet."
+    }
   },
   "options": {
     "step": {
       "init": {
         "title": "LedFx Plus Optionen",
-        "description": "Wähle aus, welche LedFx-Virtuals in Home Assistant erscheinen sollen. Abgewählte Virtuals werden samt Entitäten entfernt.",
-        "data": { "virtuals": "Virtuals" }
+        "description": "Wähle aus, welche LedFx-Virtuals in Home Assistant erscheinen. Abgewählte Virtuals werden samt Entitäten entfernt. Später in LedFx angelegte Virtuals kommen automatisch dazu.",
+        "data": {
+          "virtuals": "Virtuals"
+        }
+      }
+    }
+  },
+  "entity": {
+    "switch": {
+      "pause": {
+        "name": "Pause"
+      }
+    },
+    "select": {
+      "scene": {
+        "name": "Szene"
+      },
+      "audio_input": {
+        "name": "Audioeingang"
+      }
+    }
+  },
+  "services": {
+    "set_effect": {
+      "name": "Effekt setzen",
+      "description": "Setzt einen LedFx-Effekt und/oder ändert seine Einstellungen (Farben, Verlauf, Geschwindigkeit, ...).",
+      "fields": {
+        "effect": {
+          "name": "Effekt",
+          "description": "LedFx-Effekt-ID, z. B. energy, scroll, wavelength. Leer lassen, um nur die Einstellungen des laufenden Effekts zu ändern."
+        },
+        "config": {
+          "name": "Konfiguration",
+          "description": "Effekt-Einstellungen, z. B. gradient, color, speed, brightness."
+        }
       }
     }
   }

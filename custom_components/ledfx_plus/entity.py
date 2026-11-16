@@ -23,6 +23,18 @@ def server_device_info(coordinator: LedFxCoordinator) -> DeviceInfo:
     )
 
 
+class LedFxServerEntity(CoordinatorEntity[LedFxCoordinator]):
+    """An entity on the LedFx server (hub) device."""
+
+    _attr_has_entity_name = True
+
+    def __init__(self, coordinator: LedFxCoordinator, key: str) -> None:
+        super().__init__(coordinator)
+        self._attr_translation_key = key
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{key}"
+        self._attr_device_info = server_device_info(coordinator)
+
+
 class LedFxVirtualEntity(CoordinatorEntity[LedFxCoordinator]):
     """An entity belonging to one LedFx virtual (one HA device per virtual)."""
 
@@ -37,7 +49,7 @@ class LedFxVirtualEntity(CoordinatorEntity[LedFxCoordinator]):
             identifiers={(DOMAIN, f"{entry_id}_{virtual_id}")},
             name=self.virtual.get("config", {}).get("name", virtual_id),
             manufacturer="LedFx",
-            model="Virtual",
+            model="Device virtual" if self.virtual.get("is_device") else "Virtual",
             via_device=(DOMAIN, entry_id),
         )
 

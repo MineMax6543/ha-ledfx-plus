@@ -13,8 +13,8 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .api import LedFxClient, LedFxError
 from .const import (
-    CONF_INCLUDE_DEVICE_VIRTUALS,
-    CONF_VIRTUALS,
+    AUDIO_EVENTS,
+    CONF_EXCLUDED_VIRTUALS,
     DOMAIN,
     FALLBACK_SCAN_INTERVAL,
     REFRESH_DEBOUNCE,
@@ -32,10 +32,13 @@ _LOGGER = logging.getLogger(__name__)
 class LedFxData:
     virtuals: dict[str, Any] = field(default_factory=dict)
     paused: bool = False
+    scenes: dict[str, Any] = field(default_factory=dict)
+    audio_devices: dict[int, str] = field(default_factory=dict)
+    audio_device: int | None = None
 
 
 def is_device_virtual(virtual: dict[str, Any]) -> bool:
-    """LedFx auto-creates one virtual per physical device; these are usually duplicates."""
+    """LedFx auto-creates one virtual per physical device."""
     return bool(virtual.get("is_device"))
 
 
@@ -58,7 +61,9 @@ class LedFxCoordinator(DataUpdateCoordinator[LedFxData]):
         self.client = client
         self.effect_types: dict[str, str] = {}
         self.info: dict[str, Any] = {}
-        self._ws_task: asyncio.Task | None = None
+        # Audio device enumeration is comparatively expensive on the LedFx side,
+        # so only re-read it at startup and when LedFx reports a change.
+        self._audio_dirty = True
 
     # --- lifecycle --------------------------------------------------------
 
@@ -70,15 +75,30 @@ class LedFxCoordinator(DataUpdateCoordinator[LedFxData]):
             raise UpdateFailed(str(err)) from err
 
     async def _async_update_data(self) -> LedFxData:
+        prev = self.data or LedFxData()
         try:
-            data = await self.client.get_virtuals()
+            virtuals, scenes = await asyncio.gather(
+                self.client.get_virtuals(), self.client.get_scenes()
+            )
+            audio_devices, audio_device = prev.audio_devices, prev.audio_device
+            if self._audio_dirty:
+                audio = await self.client.get_audio_devices()
+                audio_devices = {int(i): n for i, n in (audio.get("devices") or {}).items()}
+                audio_device = audio.get("active_device_index")
+                self._audio_dirty = False
         except LedFxError as err:
             raise UpdateFailed(str(err)) from err
-        return LedFxData(virtuals=data.get("virtuals", {}), paused=bool(data.get("paused")))
+        return LedFxData(
+            virtuals=virtuals.get("virtuals", {}),
+            paused=bool(virtuals.get("paused")),
+            scenes=scenes,
+            audio_devices=audio_devices,
+            audio_device=audio_device,
+        )
 
     @callback
     def start_push(self) -> None:
-        self._ws_task = self.config_entry.async_create_background_task(
+        self.config_entry.async_create_background_task(
             self.hass, self._ws_loop(), f"{DOMAIN}_websocket"
         )
 
@@ -95,18 +115,17 @@ class LedFxCoordinator(DataUpdateCoordinator[LedFxData]):
     @callback
     def _on_event(self, event_type: str) -> None:
         _LOGGER.debug("LedFx event: %s", event_type)
-        self.hass.async_create_task(self.async_request_refresh())
+        if event_type in AUDIO_EVENTS:
+            self._audio_dirty = True
+        self.config_entry.async_create_task(self.hass, self.async_request_refresh())
+
+    def mark_audio_dirty(self) -> None:
+        self._audio_dirty = True
 
     # --- filtering --------------------------------------------------------
 
     def wanted_virtual_ids(self) -> set[str]:
-        """Virtual IDs that should have entities, based on the entry options."""
-        options = self.config_entry.options
+        """Virtual IDs that should have entities: everything not explicitly excluded."""
+        excluded = set(self.config_entry.options.get(CONF_EXCLUDED_VIRTUALS, []))
         virtuals = self.data.virtuals if self.data else {}
-        selected = options.get(CONF_VIRTUALS)
-        if selected is not None:
-            return {vid for vid in selected if vid in virtuals}
-        include_dev = options.get(CONF_INCLUDE_DEVICE_VIRTUALS, False)
-        return {
-            vid for vid, v in virtuals.items() if include_dev or not is_device_virtual(v)
-        }
+        return set(virtuals) - excluded

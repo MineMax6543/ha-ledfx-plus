@@ -1,0 +1,14 @@
+set_effect:
+  target:
+    entity:
+      integration: ledfx_plus
+      domain: light
+  fields:
+    effect:
+      example: "energy"
+      selector:
+        text:
+    config:
+      example: '{"gradient": "linear-gradient(90deg, #ff0000 0%, #0000ff 100%)", "speed": 1.5}'
+      selector:
+        object:

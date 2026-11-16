@@ -14,7 +14,23 @@ A Home Assistant custom integration for [LedFx](https://github.com/LedFx/LedFx),
 ## Features (v0.1.0)
 
 - UI setup (host + port)
-- Each selected virtual is a **light**: on/off, effect selection, brightness
+- Each virtual is a **light**: on/off, effect selection, brightness. Turning on resumes the last effect.
+- LedFx server device:
+  - **Pause** switch (global pause)
+  - **Scene** select: one entity for all LedFx scenes
+  - **Audio input** select: switch LedFx's audio source from HA
+- Service **`ledfx_plus.set_effect`**: set an effect and/or change its settings
+
+```yaml
+action: ledfx_plus.set_effect
+target:
+  entity_id: light.desk_strip
+data:
+  effect: energy
+  config:
+    gradient: "linear-gradient(90deg, #ff0000 0%, #0000ff 100%)"
+    brightness: 0.8
+```
 
 ## Installation
 

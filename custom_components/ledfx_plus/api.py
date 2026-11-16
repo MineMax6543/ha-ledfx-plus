@@ -1,4 +1,7 @@
-"""Minimal async client for the LedFx REST + websocket API."""
+"""Minimal async client for the LedFx REST + websocket API.
+
+Endpoints verified against LedFx `main` (ledfx/api/*.py).
+"""
 
 from __future__ import annotations
 
@@ -31,12 +34,15 @@ class LedFxClient:
                 json=json,
                 timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
-                resp.raise_for_status()
                 data = await resp.json(content_type=None)
+                if resp.status >= 400 and not isinstance(data, dict):
+                    resp.raise_for_status()
         except (aiohttp.ClientError, TimeoutError, ValueError) as err:
             raise LedFxError(f"{method} {path} failed: {err}") from err
         if isinstance(data, dict) and data.get("status") == "failed":
-            raise LedFxError(str(data.get("payload") or data))
+            payload = data.get("payload") or {}
+            reason = payload.get("reason") if isinstance(payload, dict) else payload
+            raise LedFxError(str(reason or data))
         return data or {}
 
     # --- read -------------------------------------------------------------
@@ -45,11 +51,20 @@ class LedFxClient:
         return await self._request("GET", "/info")
 
     async def get_virtuals(self) -> dict[str, Any]:
+        """{"virtuals": {id: {...}}, "paused": bool}"""
         return await self._request("GET", "/virtuals")
 
+    async def get_scenes(self) -> dict[str, Any]:
+        """{scene_id: {"name": ..., "active": bool, ...}}"""
+        return (await self._request("GET", "/scenes")).get("scenes", {})
+
+    async def get_audio_devices(self) -> dict[str, Any]:
+        """{"active_device_index": int, "devices": {index: name}}"""
+        return await self._request("GET", "/audio/devices")
+
     async def get_effect_types(self) -> dict[str, str]:
-        """Return {effect_id: display_name}."""
-        data = await self._request("GET", "/schema")
+        """Return {effect_id: display_name}. Only requests the effects schema."""
+        data = await self._request("GET", "/schema", "effects")
         effects = data.get("effects", {})
         return {eid: (e.get("name") or eid) for eid, e in effects.items()}
 
@@ -58,15 +73,26 @@ class LedFxClient:
     async def set_virtual_active(self, virtual_id: str, active: bool) -> None:
         await self._request("PUT", f"/virtuals/{virtual_id}", {"active": active})
 
-    async def set_effect(self, virtual_id: str, effect_type: str, config: dict | None = None) -> None:
-        await self._request(
-            "POST", f"/virtuals/{virtual_id}/effects", {"type": effect_type, "config": config or {}}
-        )
+    async def toggle_global_pause(self) -> None:
+        """LedFx only offers a toggle (PUT /api/virtuals)."""
+        await self._request("PUT", "/virtuals")
 
-    async def update_effect_config(self, virtual_id: str, effect_type: str, config: dict) -> None:
-        await self._request(
-            "PUT", f"/virtuals/{virtual_id}/effects", {"type": effect_type, "config": config}
-        )
+    async def set_effect(self, virtual_id: str, effect_type: str, config: dict | None = None) -> None:
+        """Set a new effect. Without config, LedFx uses the effect's stored config."""
+        body: dict[str, Any] = {"type": effect_type}
+        if config:
+            body["config"] = config
+        await self._request("POST", f"/virtuals/{virtual_id}/effects", body)
+
+    async def update_effect_config(self, virtual_id: str, config: dict) -> None:
+        """Merge config into the active effect (PUT keeps the current type)."""
+        await self._request("PUT", f"/virtuals/{virtual_id}/effects", {"config": config})
+
+    async def activate_scene(self, scene_id: str) -> None:
+        await self._request("PUT", "/scenes", {"id": scene_id, "action": "activate"})
+
+    async def set_audio_device(self, index: int) -> None:
+        await self._request("PUT", "/audio/devices", {"audio_device": index})
 
     # --- push -------------------------------------------------------------
 
@@ -82,15 +108,15 @@ class LedFxClient:
                 for i, event in enumerate(events, start=1):
                     await ws.send_json({"id": i, "type": "subscribe_event", "event_type": event})
                 async for msg in ws:
+                    if msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                        break
                     if msg.type != aiohttp.WSMsgType.TEXT:
-                        if msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
-                            break
                         continue
                     try:
                         data = msg.json()
                     except ValueError:
                         continue
-                    if data.get("type") == "event":
+                    if isinstance(data, dict) and data.get("type") == "event":
                         on_event(data.get("event_type", ""))
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
             raise LedFxError(f"websocket error: {err}") from err

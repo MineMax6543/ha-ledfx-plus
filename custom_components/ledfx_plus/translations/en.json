@@ -4,18 +4,58 @@
       "user": {
         "title": "Connect to LedFx",
         "description": "Enter the address of your LedFx server.",
-        "data": { "host": "Host", "port": "Port" }
+        "data": {
+          "host": "Host",
+          "port": "Port"
+        }
       }
     },
-    "error": { "cannot_connect": "Could not connect to LedFx. Check host and port." },
-    "abort": { "already_configured": "This LedFx server is already configured." }
+    "error": {
+      "cannot_connect": "Could not connect to LedFx. Check host and port."
+    },
+    "abort": {
+      "already_configured": "This LedFx server is already configured."
+    }
   },
   "options": {
     "step": {
       "init": {
         "title": "LedFx Plus options",
-        "description": "Choose which LedFx virtuals should appear in Home Assistant. Deselected virtuals are removed together with their entities.",
-        "data": { "virtuals": "Virtuals" }
+        "description": "Choose which LedFx virtuals appear in Home Assistant. Deselected virtuals are removed together with their entities. Virtuals you create later in LedFx are added automatically.",
+        "data": {
+          "virtuals": "Virtuals"
+        }
+      }
+    }
+  },
+  "entity": {
+    "switch": {
+      "pause": {
+        "name": "Pause"
+      }
+    },
+    "select": {
+      "scene": {
+        "name": "Scene"
+      },
+      "audio_input": {
+        "name": "Audio input"
+      }
+    }
+  },
+  "services": {
+    "set_effect": {
+      "name": "Set effect",
+      "description": "Set a LedFx effect and/or change its settings (colours, gradient, speed, ...).",
+      "fields": {
+        "effect": {
+          "name": "Effect",
+          "description": "LedFx effect ID, e.g. energy, scroll, wavelength. Leave empty to only change the settings of the running effect."
+        },
+        "config": {
+          "name": "Config",
+          "description": "Effect settings to merge, e.g. gradient, color, speed, brightness."
+        }
       }
     }
   }
